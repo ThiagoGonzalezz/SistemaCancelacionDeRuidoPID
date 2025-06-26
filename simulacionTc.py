@@ -26,9 +26,9 @@ cantidadDeMediciones = 0
 errorAnterior = 0
 
 try:
-    music, _ = librosa.load('music.wav', sr=sample_rate, mono=True)
+    music, _ = librosa.load('haVueltoElMatador.wav', sr=sample_rate, mono=True)
 except FileNotFoundError as e:
-    print(f"Error: {e}. Asegúrate de que 'music.wav' esté en {os.getcwd()}")
+    print(f"Error: {e}. Asegúrate de que 'haVueltoElMatador.wav' esté en {os.getcwd()}")
     exit(1)
 
 music = music / np.max(np.abs(music))
