@@ -14,6 +14,20 @@ sample_rate = 44100
 block_duration = 0.02  # Reducido para fluidez
 t = np.linspace(0, block_duration, int(sample_rate * block_duration))
 dt = t[1] - t[0]
+retroalimentacion = 0
+entradaAnterior = 0
+
+#VARIABLES GLOBALES CONTROLADORES
+Kp = 0  # Ganancia proporcional
+Ki = 0.8    # Ganancia integral
+Kd = 0   # Ganancia derivativa
+
+#Integral
+errorAcumulado = 0
+cantidadDeMediciones = 0
+
+#Derovativo
+errorAnterior = 0 
 
 # Cargar música
 try:
@@ -76,27 +90,106 @@ def generate_signal(t, idx):
         noise_signal = np.pad(noise_signal, (0, len(t) - len(noise_signal)), 'constant')
     return music_signal, noise_signal
 
+
+#######################################################################
+#######################################################################
+#######################################################################
+
 # Controlador PID simplificado (fase inversa directa)
 # capaz estamos robando con esto pero sino es un quilombo
-def pid_controller(noise_signal):
+#def pid_controller(noise_signal):
+#    if enable_pid:
+#       return np.clip(-noise_signal, -output_max, output_max)  # Fase inversa
+#    return np.zeros_like(noise_signal)
+
+
+def controladorPID(error):
+        return controladorProporcional(error) + controladorDerivativo(error) + controladorIntegral(error)
+def controladorProporcional(error):
+    return Kp * error
+
+def controladorDerivativo(error):
+    global errorAnterior
+
+    pendienteError = (error - errorAnterior) / dt
+    errorAnterior = error
+    return pendienteError * Kd
+
+def controladorIntegral(error):
+    global errorAcumulado, cantidadDeMediciones
+
+
+    errorAcumulado += error
+    cantidadDeMediciones += 1
+    valorMedio = errorAcumulado / cantidadDeMediciones
+    return Ki * valorMedio
+
+# Creador de fase inversa directa)
+def invertir_ruido(noise_signal):
     if enable_pid:
         return np.clip(-noise_signal, -output_max, output_max)  # Fase inversa
     return np.zeros_like(noise_signal)
 
+#######################################################################
+#######################################################################
+#######################################################################
+
+#######################################################################
+#######################################################################
+#######################################################################
+
+
+#def audio_callback(outdata, frames, time, status):
+#    global music_idx, signals, error_rms
+#    if is_paused:
+#        outdata.fill(0)
+#        return
+#    music_signal, noise_signal = generate_signal(t, music_idx)
+#    anti_noise = invertir_ruido(noise_signal)
+#    error = music_signal - (noise_signal + anti_noise)
+#    output = music_signal + noise_signal + anti_noise
+#    error_rms = np.sqrt(np.mean(error**2))
+#    signals = (music_signal, noise_signal, error, anti_noise, output)
+#    outdata[:, 0] = np.clip(output, -1.0, 1.0)
+#    music_idx = (music_idx + len(t)) % len(music)
 
 def audio_callback(outdata, frames, time, status):
-    global music_idx, signals, error_rms
+    global music_idx, signals, error_rms, retroalimentacion, entradaAnterior
     if is_paused:
         outdata.fill(0)
         return
+    
+    entrada = music
+    
+    error = entradaAnterior - retroalimentacion
+    
     music_signal, noise_signal = generate_signal(t, music_idx)
-    anti_noise = pid_controller(noise_signal)
-    error = music_signal - (noise_signal + anti_noise)
-    output = music_signal + noise_signal + anti_noise
+
+    #antiruido = invertir_ruido(controladorPID(error))
+
+    antiruido = controladorPID(error)
+
+    entradaAnterior = music_signal
+
+    salida = music_signal + antiruido + noise_signal 
+
+    #Reproducir y actualizar señales
+    ############################################################
+
     error_rms = np.sqrt(np.mean(error**2))
-    signals = (music_signal, noise_signal, error, anti_noise, output)
-    outdata[:, 0] = np.clip(output, -1.0, 1.0)
+
+    signals = (music_signal, noise_signal, error, antiruido, salida)
+    outdata[:, 0] = np.clip(salida, -1.0, 1.0)
     music_idx = (music_idx + len(t)) % len(music)
+
+    #############################################################
+
+
+    retroalimentacion = salida
+
+#######################################################################
+#######################################################################
+#######################################################################
 
 # Pausar/Reanudar
 def toggle_pause():
