@@ -91,6 +91,11 @@ def reset_integral():
     errorAcumulado = 0
     cantidadDeMediciones = 0
 
+def toggle_pause():
+    global is_paused
+    is_paused = not is_paused
+    pause_btn.config(text="Continuar" if is_paused else "Pausar")
+
 # =================== FUNCIONES DE SEÑAL ===================
 def generate_signal(t, idx):
     idx = idx % len(music)
@@ -113,7 +118,7 @@ def controladorDerivativo(error):
     global errorAnterior, primer_error_derivativo
     if primer_error_derivativo:
         primer_error_derivativo = False
-        errorAnterior = error  # inicializamos correctamente
+        errorAnterior = error
         return 0
     pendienteError = (error - errorAnterior) / dt
     errorAnterior = error
@@ -145,118 +150,118 @@ def audio_callback(outdata, frames, time, status):
     music_idx = (music_idx + len(t)) % len(music)
     retroalimentacion = salida
 
-    print(dt)
-
 # =================== INTERFAZ ===================
-def configurar_estilos():
-    style = ttk.Style()
-    style.theme_use("clam")
-    style.configure("TFrame", background="#f0f4f7")
-    style.configure("TLabel", background="#f0f4f7", font=("Segoe UI", 10))
-    style.configure("TButton", font=("Segoe UI", 10, "bold"), padding=6)
-    style.configure("Horizontal.TScale", troughcolor="#e0e0e0", background="#4a90e2")
-    style.configure("TCheckbutton", background="#f0f4f7", font=("Segoe UI", 10))
-
-def toggle_pause():
-    global is_paused, stream
-    is_paused = not is_paused
-    pause_button.config(text="Reanudar" if is_paused else "Pausar")
-    if is_paused:
-        stream.stop()
-    else:
-        stream.start()
-
-def toggle_pid():
-    global enable_pid
-    enable_pid = pid_var.get()
-
 root = tk.Tk()
-root.title("Simulación ANC")
-configurar_estilos()
+root.title("Simulación ANC PID")
 
 main_frame = ttk.Frame(root)
 main_frame.pack(fill="both", expand=True)
 
-frame_sliders = ttk.Frame(main_frame)
-frame_sliders.grid(row=0, column=0, padx=10, pady=10, sticky="n")
+left_panel = ttk.Frame(main_frame)
+left_panel.pack(side="left", fill="y", padx=10, pady=10)
 
-music_label_var = tk.StringVar(value=f"Amplitud Música: {music_amplitude:.2f}")
-motor_label_var = tk.StringVar(value=f"Amplitud Motor: {motor_amplitude:.2f}")
-horn_label_var = tk.StringVar(value=f"Amplitud Bocinazo: {horn_amplitude:.2f}")
-kp_label_var = tk.StringVar(value=f"Kp: {Kp:.2f}")
-ki_label_var = tk.StringVar(value=f"Ki: {Ki:.2f}")
-kd_label_var = tk.StringVar(value=f"Kd: {Kd:.2f}")
+right_panel = ttk.Frame(main_frame)
+right_panel.pack(side="right", fill="both", expand=True)
 
-crear_slider = lambda text_var, command, row, to_val=1: (
-    ttk.Label(frame_sliders, textvariable=text_var).grid(row=row, column=0, sticky="w", padx=10, pady=2),
-    ttk.Scale(frame_sliders, from_=0, to=to_val, orient="horizontal", command=command, length=200).grid(row=row, column=1, padx=10, pady=2)
-)
-crear_slider(music_label_var, set_music_amplitude, 0)
-crear_slider(motor_label_var, set_motor_amplitude, 1)
-crear_slider(horn_label_var, set_horn_amplitude, 2)
-crear_slider(kp_label_var, set_Kp, 3, 5)
-crear_slider(ki_label_var, set_Ki, 4, 5)
-crear_slider(kd_label_var, set_Kd, 5, 5)
+# Controles
+music_label_var = tk.StringVar()
+motor_label_var = tk.StringVar()
+horn_label_var = tk.StringVar()
+kp_label_var = tk.StringVar()
+ki_label_var = tk.StringVar()
+kd_label_var = tk.StringVar()
+error_rms_var = tk.StringVar()
 
-frame_controls = ttk.Frame(frame_sliders)
-frame_controls.grid(row=6, column=0, columnspan=2, pady=10)
+labels = [
+    ("Música", set_music_amplitude, music_label_var),
+    ("Motor", set_motor_amplitude, motor_label_var),
+    ("Bocinazo", set_horn_amplitude, horn_label_var),
+    ("Kp", set_Kp, kp_label_var),
+    ("Ki", set_Ki, ki_label_var),
+    ("Kd", set_Kd, kd_label_var),
+]
 
-pid_var = tk.BooleanVar(value=False)
-error_rms_var = tk.StringVar(value="Error RMS: 0.00")
-pause_button = ttk.Button(frame_controls, text="Pausar", command=toggle_pause)
-reset_button = ttk.Button(frame_controls, text="Reiniciar Controlador Integral", command=reset_integral)
+for i, (label, cmd, var) in enumerate(labels):
+    scale = ttk.Scale(left_panel, from_=0, to=5 if 'K' in label else 1, orient="horizontal", command=cmd)
+    scale.set(0.8 if label == "Ki" else 0)
+    scale.grid(row=i, column=1, sticky="ew")
+    ttk.Label(left_panel, textvariable=var).grid(row=i, column=0, sticky="w")
 
-ttk.Checkbutton(frame_controls, text="Activar PID", variable=pid_var, command=toggle_pid).grid(row=0, column=0, padx=10, sticky="w")
-ttk.Label(frame_controls, textvariable=error_rms_var).grid(row=1, column=0, padx=10, pady=5, sticky="w")
-pause_button.grid(row=0, column=1, padx=10)
-reset_button.grid(row=1, column=1, padx=10)
+pause_btn = ttk.Button(left_panel, text="Pausar", command=toggle_pause)
+pause_btn.grid(row=len(labels), columnspan=2, pady=(0, 5))
 
-# Gráficas
-fig, (ax1, ax2, ax3, ax4, ax5) = plt.subplots(5, 1, figsize=(10, 8), dpi=100)
-canvas = FigureCanvasTkAgg(fig, master=main_frame)
-canvas.get_tk_widget().grid(row=0, column=1, padx=10, pady=10, sticky="nsew")
+reset_btn = ttk.Button(left_panel, text="Reiniciar Integral", command=reset_integral)
+reset_btn.grid(row=len(labels)+1, columnspan=2, pady=(0, 10))
 
-main_frame.columnconfigure(1, weight=1)
-main_frame.rowconfigure(0, weight=1)
+ttk.Label(left_panel, textvariable=error_rms_var).grid(row=len(labels)+2, columnspan=2)
 
-line_music, = ax1.plot(t, np.zeros_like(t), label="Música", color='blue', linewidth=2)
-line_noise, = ax2.plot(t, np.zeros_like(t), label="Ruido", color='red', linewidth=2)
-line_error, = ax3.plot(t, np.zeros_like(t), label="Error", color='green', linewidth=2)
-line_control, = ax4.plot(t, np.zeros_like(t), label="Antirruido", color='purple', linewidth=2)
-line_output, = ax5.plot(t, np.zeros_like(t), label="Salida Percibida", color='orange', linewidth=2)
-
-for ax, title in zip([ax1, ax2, ax3, ax4, ax5],
-                     ["Señal de Música", "Ruido (Motor + Bocinazo)", "Error (Música - Ruido - Antirruido)",
-                      "Señal Antirruido", "Salida Percibida"]):
-    ax.legend()
-    ax.grid(True, linestyle="--", alpha=0.6)
+# Gráficos principales con colores
+fig, axs = plt.subplots(5, 1, figsize=(8, 6), constrained_layout=True)
+colors_main = ['blue', 'red', 'green', 'purple', 'orange']
+axes = axs
+lines = []
+for ax, title, color in zip(axs, ["Música", "Ruido", "Error", "Antirruido", "Salida"], colors_main):
+    line, = ax.plot(t, np.zeros_like(t), color=color, linewidth=1.8)
+    ax.set_title(title)
     ax.set_xlim(0, block_duration)
-    ax.set_xlabel("Tiempo (s)")
-    ax.set_title(title, fontweight="bold")
+    ax.grid(True)
+    lines.append(line)
+canvas_main = FigureCanvasTkAgg(fig, master=right_panel)
+canvas_main.get_tk_widget().pack(fill="both", expand=True)
 
-plt.tight_layout()
+line_music, line_noise, line_error, line_control, line_output = lines
+
+# Gráficos PID debajo del panel izquierdo con colores
+fig_pid, (ax_p, ax_i, ax_d) = plt.subplots(3, 1, figsize=(3, 2.5), dpi=100, constrained_layout=True)
+line_p, = ax_p.plot(t, np.zeros_like(t), color="blue")
+line_i, = ax_i.plot(t, np.zeros_like(t), color="green")
+line_d, = ax_d.plot(t, np.zeros_like(t), color="red")
+
+for ax, title in zip([ax_p, ax_i, ax_d], ["Proporcional", "Integral", "Derivativo"]):
+    ax.set_title(title, fontsize=9)
+    ax.set_xlim(0, block_duration)
+    ax.grid(True)
+
+canvas_pid = FigureCanvasTkAgg(fig_pid, master=left_panel)
+canvas_pid.get_tk_widget().grid(row=len(labels)+3, column=0, columnspan=2, pady=10)
 
 # =================== ANIMACIÓN ===================
 def update_plots(frame):
     global error_rms
     if is_paused:
-        return line_music, line_noise, line_error, line_control, line_output
+        return lines + [line_p, line_i, line_d]
+
     music_signal, noise_signal, error, anti_noise, output = signals
+    proportional = np.full_like(t, controladorProporcional(error))
+    integral = np.full_like(t, controladorIntegral(error))
+    derivative = np.full_like(t, controladorDerivativo(error))
+
     line_music.set_ydata(music_signal)
     line_noise.set_ydata(noise_signal)
     line_error.set_ydata(error)
     line_control.set_ydata(anti_noise)
     line_output.set_ydata(output)
-    for ax, signal in zip([ax1, ax2, ax3, ax4, ax5], signals):
+    line_p.set_ydata(proportional)
+    line_i.set_ydata(integral)
+    line_d.set_ydata(derivative)
+
+    for ax, signal in zip(axes, signals):
         max_val = max(np.max(np.abs(signal)) * 1.5, 0.1)
         ax.set_ylim(-max_val, max_val)
-    error_rms_var.set(f"Error RMS: {error_rms:.4f}")
-    return line_music, line_noise, line_error, line_control, line_output
 
-ani = FuncAnimation(fig, update_plots, interval=block_duration*1000, blit=True, save_count=100)
+    for ax, signal in zip([ax_p, ax_i, ax_d], [proportional, integral, derivative]):
+        max_val = max(np.max(np.abs(signal)) * 1.5, 0.1)
+        ax.set_ylim(-max_val, max_val)
+
+    error_rms_var.set(f"Error RMS: {error_rms:.4f}")
+    return lines + [line_p, line_i, line_d]
+
+ani = FuncAnimation(fig, update_plots, interval=block_duration * 1000, blit=True, cache_frame_data=False)
 
 stream = sd.OutputStream(samplerate=sample_rate, channels=1, callback=audio_callback, blocksize=len(t))
 stream.start()
+
 root.mainloop()
+
 stream.stop()
 stream.close()
