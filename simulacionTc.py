@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import ttk
+from tkinter import ttk, filedialog
 import numpy as np
 import sounddevice as sd
 import matplotlib.pyplot as plt
@@ -7,7 +7,6 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.animation import FuncAnimation
 import librosa
 import os
-from tkinter import filedialog
 
 # =================== CONFIGURACIÓN INICIAL ===================
 sample_rate = 44100
@@ -45,10 +44,14 @@ for i in range(0, min_length, pulse_interval):
 motor_noise = motor_noise / np.max(np.abs(motor_noise))
 horn_noise = horn_noise / np.max(np.abs(horn_noise))
 
+# Ruido extra cargado por el usuario
+extra_noise = np.zeros_like(motor_noise)
+extra_noise_amplitude = 0.0
+
 music_amplitude = 0.0
 motor_amplitude = 0.0
 horn_amplitude = 0.0
-enable_pid = False
+enable_pid = True  # Siempre activo
 music_idx = 0
 signals = (np.zeros_like(t), np.zeros_like(t), np.zeros_like(t), np.zeros_like(t), np.zeros_like(t))
 is_paused = False
@@ -72,6 +75,11 @@ def set_horn_amplitude(value):
     horn_amplitude = float(value)
     horn_label_var.set(f"Amplitud Bocinazo: {horn_amplitude:.2f}")
 
+def set_extra_noise_amplitude(value):
+    global extra_noise_amplitude
+    extra_noise_amplitude = float(value)
+    extra_noise_label_var.set(f"Amplitud Ruido Extra: {extra_noise_amplitude:.2f}")
+
 def set_Kp(value):
     global Kp
     Kp = float(value)
@@ -93,16 +101,23 @@ def reset_integral():
     cantidadDeMediciones = 0
 
 def toggle_pause():
-    global is_paused
+    global is_paused, stream
     is_paused = not is_paused
-    pause_btn.config(text="Continuar" if is_paused else "Pausar")
+    pause_button.config(text="Reanudar" if is_paused else "Pausar")
+    if is_paused:
+        stream.stop()
+    else:
+        stream.start()
 
 # =================== FUNCIONES DE SEÑAL ===================
 def generate_signal(t, idx):
     idx = idx % len(music)
     end_idx = min(idx + len(t), len(music))
     music_signal = music_amplitude * music[idx:end_idx]
-    noise_signal = motor_amplitude * motor_noise[idx:end_idx] + horn_amplitude * horn_noise[idx:end_idx]
+    motor = motor_amplitude * motor_noise[idx:end_idx]
+    horn = horn_amplitude * horn_noise[idx:end_idx]
+    extra = extra_noise_amplitude * extra_noise[idx:end_idx] if extra_noise_amplitude > 0 else np.zeros(end_idx - idx)
+    noise_signal = motor + horn + extra
     if len(music_signal) < len(t):
         music_signal = np.pad(music_signal, (0, len(t) - len(music_signal)), 'constant')
         noise_signal = np.pad(noise_signal, (0, len(t) - len(noise_signal)), 'constant')
@@ -151,6 +166,45 @@ def audio_callback(outdata, frames, time, status):
     music_idx = (music_idx + len(t)) % len(music)
     retroalimentacion = salida
 
+# =================== CARGAR AUDIO ===================
+def cargar_musica():
+    global music, motor_noise, horn_noise, extra_noise, music_idx, primer_error_derivativo
+    archivo = filedialog.askopenfilename(filetypes=[("Archivos WAV", "*.wav")])
+    if archivo:
+        y, sr = librosa.load(archivo, sr=sample_rate, mono=True)
+        if len(y) == 0:
+            return
+        y = y / np.max(np.abs(y))
+        music = y
+        # Al cambiar música, reajustar ruidos para que tengan la misma longitud
+        min_len = len(music)
+        motor_noise.resize(min_len, refcheck=False)
+        horn_noise.resize(min_len, refcheck=False)
+        extra_noise.resize(min_len, refcheck=False)
+        music_idx = 0
+        primer_error_derivativo = True
+        print(f"Música cargada: {archivo}")
+
+def cargar_ruido():
+    global extra_noise, extra_noise_amplitude
+    archivo = filedialog.askopenfilename(filetypes=[("Archivos WAV", "*.wav")])
+    if archivo:
+        y, sr = librosa.load(archivo, sr=sample_rate, mono=True)
+        if len(y) == 0:
+            return
+        y = y / np.max(np.abs(y))
+        if len(y) < len(music):
+            y = np.pad(y, (0, len(music) - len(y)), 'constant')
+        else:
+            y = y[:len(music)]
+        extra_noise = y
+        # No activar automáticamente el volumen del ruido
+        if extra_noise_amplitude == 0:
+            extra_noise_amplitude = 0.0
+            extra_noise_scale.set(extra_noise_amplitude)
+        extra_noise_label_var.set(f"Amplitud Ruido Extra: {extra_noise_amplitude:.2f}")
+        print(f"Ruido cargado: {archivo}")
+
 # =================== INTERFAZ ===================
 root = tk.Tk()
 root.title("Simulación ANC PID")
@@ -168,6 +222,7 @@ right_panel.pack(side="right", fill="both", expand=True)
 music_label_var = tk.StringVar()
 motor_label_var = tk.StringVar()
 horn_label_var = tk.StringVar()
+extra_noise_label_var = tk.StringVar()
 kp_label_var = tk.StringVar()
 ki_label_var = tk.StringVar()
 kd_label_var = tk.StringVar()
@@ -177,6 +232,7 @@ labels = [
     ("Música", set_music_amplitude, music_label_var),
     ("Motor", set_motor_amplitude, motor_label_var),
     ("Bocinazo", set_horn_amplitude, horn_label_var),
+    ("Ruido Extra", set_extra_noise_amplitude, extra_noise_label_var),
     ("Kp", set_Kp, kp_label_var),
     ("Ki", set_Ki, ki_label_var),
     ("Kd", set_Kd, kd_label_var),
@@ -184,25 +240,39 @@ labels = [
 
 for i, (label, cmd, var) in enumerate(labels):
     scale = ttk.Scale(left_panel, from_=0, to=5 if 'K' in label else 1, orient="horizontal", command=cmd)
-    scale.set(0.8 if label == "Ki" else 0)
-    scale.grid(row=i, column=1, sticky="ew")
+    if label == "Ki":
+        scale.set(0.8)
+    elif label == "Ruido Extra":
+        scale.set(extra_noise_amplitude)
+    else:
+        scale.set(0)
+    scale.grid(row=i, column=1, sticky="ew", pady=3)
     ttk.Label(left_panel, textvariable=var).grid(row=i, column=0, sticky="w")
 
-pause_btn = ttk.Button(left_panel, text="Pausar", command=toggle_pause)
-pause_btn.grid(row=len(labels), columnspan=2, pady=(0, 5))
+# Botones cargar música y ruido
+btn_cargar_musica = ttk.Button(left_panel, text="Cargar Música (WAV)", command=cargar_musica)
+btn_cargar_musica.grid(row=len(labels), column=0, columnspan=2, pady=5, sticky="ew")
 
+btn_cargar_ruido = ttk.Button(left_panel, text="Cargar Ruido (WAV)", command=cargar_ruido)
+btn_cargar_ruido.grid(row=len(labels)+1, column=0, columnspan=2, pady=5, sticky="ew")
+
+# Botón reiniciar integral y pausa
 reset_btn = ttk.Button(left_panel, text="Reiniciar Integral", command=reset_integral)
-reset_btn.grid(row=len(labels)+1, columnspan=2, pady=(0, 10))
+reset_btn.grid(row=len(labels)+2, column=0, columnspan=2, pady=5, sticky="ew")
 
-ttk.Label(left_panel, textvariable=error_rms_var).grid(row=len(labels)+2, columnspan=2)
+pause_button = ttk.Button(left_panel, text="Pausar", command=toggle_pause)
+pause_button.grid(row=len(labels)+3, column=0, columnspan=2, pady=5, sticky="ew")
 
-# Gráficos principales con colores
+ttk.Label(left_panel, textvariable=error_rms_var).grid(row=len(labels)+4, column=0, columnspan=2, pady=10)
+
+# Gráficos principales
 fig, axs = plt.subplots(5, 1, figsize=(8, 6), constrained_layout=True)
-colors_main = ['blue', 'red', 'green', 'purple', 'orange']
 axes = axs
 lines = []
-for ax, title, color in zip(axs, ["Música", "Ruido", "Error", "Antirruido", "Salida"], colors_main):
-    line, = ax.plot(t, np.zeros_like(t), color=color, linewidth=1.8)
+colors = ['blue', 'red', 'green', 'purple', 'orange']
+titles = ["Música", "Ruido", "Error", "Antirruido", "Salida"]
+for ax, title, c in zip(axs, titles, colors):
+    line, = ax.plot(t, np.zeros_like(t), color=c)
     ax.set_title(title)
     ax.set_xlim(0, block_duration)
     ax.grid(True)
@@ -212,7 +282,7 @@ canvas_main.get_tk_widget().pack(fill="both", expand=True)
 
 line_music, line_noise, line_error, line_control, line_output = lines
 
-# Gráficos PID debajo del panel izquierdo con colores
+# Gráficos PID debajo del panel izquierdo
 fig_pid, (ax_p, ax_i, ax_d) = plt.subplots(3, 1, figsize=(3, 2.5), dpi=100, constrained_layout=True)
 line_p, = ax_p.plot(t, np.zeros_like(t), color="blue")
 line_i, = ax_i.plot(t, np.zeros_like(t), color="green")
@@ -224,39 +294,7 @@ for ax, title in zip([ax_p, ax_i, ax_d], ["Proporcional", "Integral", "Derivativ
     ax.grid(True)
 
 canvas_pid = FigureCanvasTkAgg(fig_pid, master=left_panel)
-canvas_pid.get_tk_widget().grid(row=len(labels)+3, column=0, columnspan=2, pady=10)
-
-def cargar_musica():
-    global music, music_idx
-    archivo = filedialog.askopenfilename(filetypes=[("Archivos WAV", "*.wav")])
-    if archivo:
-        y, sr = librosa.load(archivo, sr=sample_rate, mono=True)
-        if len(y) == 0:
-            return
-        y = y / np.max(np.abs(y))
-        music = y
-        music_idx = 0
-        print(f"Música cargada: {archivo}")
-
-def cargar_ruido():
-    global motor_noise, horn_noise
-    archivo = filedialog.askopenfilename(filetypes=[("Archivos WAV", "*.wav")])
-    if archivo:
-        y, sr = librosa.load(archivo, sr=sample_rate, mono=True)
-        if len(y) == 0:
-            return
-        y = y / np.max(np.abs(y))
-        # Para simplificar reemplazamos ambos ruidos con la misma señal
-        motor_noise = y
-        horn_noise = np.zeros_like(y)  # o también poner horn_noise = y si querés
-        print(f"Ruido cargado: {archivo}")
-
-# Botones para cargar archivos
-btn_cargar_musica = ttk.Button(left_panel, text="Cargar Música (WAV)", command=cargar_musica)
-btn_cargar_musica.grid(row=len(labels)+4, column=0, columnspan=2, pady=5, sticky="ew")
-
-btn_cargar_ruido = ttk.Button(left_panel, text="Cargar Ruido (WAV)", command=cargar_ruido)
-btn_cargar_ruido.grid(row=len(labels)+5, column=0, columnspan=2, pady=5, sticky="ew")
+canvas_pid.get_tk_widget().grid(row=len(labels)+5, column=0, columnspan=2, pady=10)
 
 # =================== ANIMACIÓN ===================
 def update_plots(frame):
@@ -289,7 +327,7 @@ def update_plots(frame):
     error_rms_var.set(f"Error RMS: {error_rms:.4f}")
     return lines + [line_p, line_i, line_d]
 
-ani = FuncAnimation(fig, update_plots, interval=block_duration * 1000, blit=True, cache_frame_data=False)
+ani = FuncAnimation(fig, update_plots, interval=block_duration * 1000, blit=True)
 
 stream = sd.OutputStream(samplerate=sample_rate, channels=1, callback=audio_callback, blocksize=len(t))
 stream.start()
