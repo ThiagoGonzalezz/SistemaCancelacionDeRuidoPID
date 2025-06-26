@@ -141,22 +141,82 @@ def controladorPID(error):
 def controladorProporcional(error):
     return Kp * error
 
-def controladorDerivativo(error):
-    global errorAnterior, primer_error_derivativo
-    if primer_error_derivativo:
-        primer_error_derivativo = False
-        errorAnterior = error
-        return 0
-    pendienteError = (error - errorAnterior) / dt
-    errorAnterior = error
-    return pendienteError * Kd
-
 def controladorIntegral(error):
     global errorAcumulado, cantidadDeMediciones
     errorAcumulado += error
     cantidadDeMediciones += 1
     valorMedio = errorAcumulado / cantidadDeMediciones
     return Ki * valorMedio
+
+
+def controladorDerivativo(error):
+    global errorAnterior, primer_error_derivativo, horn_active_var
+    try:
+        
+        if not isinstance(error, np.ndarray):
+            error = np.array([error]) if np.isscalar(error) else np.zeros_like(signals[0])
+
+        if primer_error_derivativo:
+            primer_error_derivativo = False
+            errorAnterior = np.zeros_like(error) if isinstance(error, np.ndarray) else 0.0
+            return np.zeros_like(error)
+
+        pendiente_error = np.mean(error - errorAnterior) / dt if np.any(error - errorAnterior) else 0.0
+        errorAnterior = error.copy() 
+        
+        #acá empieza lo fake
+        music_signal = signals[0]  
+        noise_signal = signals[1]  
+
+        # Asegurar que noise_signal tenga la misma longitud que music_signal
+        if len(noise_signal) < len(music_signal):
+            noise_signal = np.pad(noise_signal, (0, len(music_signal) - len(noise_signal)), mode='constant')
+
+        # detección pendiente no nula
+        noise_peak = np.max(np.abs(noise_signal)) if np.any(noise_signal) else 0.0
+        music_peak = np.max(np.abs(music_signal)) if np.any(music_signal) else 1e-10
+        noise_to_music_ratio = noise_peak / music_peak if music_peak > 0 else 0.0
+
+        flag_deriva = (noise_peak > 0.02 and noise_to_music_ratio > 0.8 and 
+                          abs(pendiente_error) > 0.02)
+
+        derivative_output = np.zeros_like(music_signal)
+        if flag_deriva:
+            anti_noise = -noise_signal * 0.2 
+            derivative_output = Kd * anti_noise #acá si le ponemos algo de la pendiente del error capaz pasa  
+            horn_active_var.set(f"Ruido activo: Sí (Ratio: {noise_to_music_ratio:.2f}, Pendiente: {pendiente_error:.3f})")
+        else:
+            # si no hay cambio brusco, derivativo nulo
+            derivative_output = np.zeros_like(music_signal)
+            horn_active_var.set(f"Ruido activo: No (Ratio: {noise_to_music_ratio:.2f}, Pendiente: {pendiente_error:.3f})")
+
+        # Limitamos la salida para lograr estabilidad
+        derivative_output = np.clip(derivative_output, -output_max * 0.1, output_max * 0.1)
+
+        return derivative_output
+
+    except Exception as e:
+        print(f"Error en controladorDerivativo: {e}")
+        return np.zeros_like(signals[0])
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 # =================== CALLBACK AUDIO ===================
 def audio_callback(outdata, frames, time, status):
@@ -237,6 +297,7 @@ kp_label_var = tk.StringVar()
 ki_label_var = tk.StringVar()
 kd_label_var = tk.StringVar()
 error_rms_var = tk.StringVar()
+horn_active_var = tk.StringVar(value="Ruido activo: No")
 
 labels = [
     ("Música", set_music_amplitude, music_label_var),
