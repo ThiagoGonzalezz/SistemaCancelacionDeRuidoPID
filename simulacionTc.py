@@ -218,6 +218,8 @@ left_panel.pack(side="left", fill="y", padx=10, pady=10)
 right_panel = ttk.Frame(main_frame)
 right_panel.pack(side="right", fill="both", expand=True)
 
+extra_noise_scale = None
+
 # Controles
 music_label_var = tk.StringVar()
 motor_label_var = tk.StringVar()
@@ -244,6 +246,7 @@ for i, (label, cmd, var) in enumerate(labels):
         scale.set(0.8)
     elif label == "Ruido Extra":
         scale.set(extra_noise_amplitude)
+        extra_noise_scale = scale  # <- Guardamos referencia acá
     else:
         scale.set(0)
     scale.grid(row=i, column=1, sticky="ew", pady=3)
