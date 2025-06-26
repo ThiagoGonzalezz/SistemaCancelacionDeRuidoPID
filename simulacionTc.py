@@ -20,6 +20,7 @@ Kp = 0
 Ki = 0.8
 Kd = 0
 
+primer_error_derivativo = True
 errorAcumulado = 0
 cantidadDeMediciones = 0
 errorAnterior = 0
@@ -109,7 +110,11 @@ def controladorProporcional(error):
     return Kp * error
 
 def controladorDerivativo(error):
-    global errorAnterior
+    global errorAnterior, primer_error_derivativo
+    if primer_error_derivativo:
+        primer_error_derivativo = False
+        errorAnterior = error  # inicializamos correctamente
+        return 0
     pendienteError = (error - errorAnterior) / dt
     errorAnterior = error
     return pendienteError * Kd
@@ -139,6 +144,8 @@ def audio_callback(outdata, frames, time, status):
     outdata[:, 0] = np.clip(salida, -1.0, 1.0)
     music_idx = (music_idx + len(t)) % len(music)
     retroalimentacion = salida
+
+    print(dt)
 
 # =================== INTERFAZ ===================
 def configurar_estilos():
