@@ -47,6 +47,7 @@ horn_noise = horn_noise / np.max(np.abs(horn_noise))
 # Ruido extra cargado por el usuario
 extra_noise = np.zeros_like(motor_noise)
 extra_noise_amplitude = 0.0
+extra_noise_idx = 0  
 
 music_amplitude = 0.0
 motor_amplitude = 0.0
@@ -111,16 +112,26 @@ def toggle_pause():
 
 # =================== FUNCIONES DE SEÑAL ===================
 def generate_signal(t, idx):
+    global extra_noise_idx
     idx = idx % len(music)
     end_idx = min(idx + len(t), len(music))
     music_signal = music_amplitude * music[idx:end_idx]
     motor = motor_amplitude * motor_noise[idx:end_idx]
     horn = horn_amplitude * horn_noise[idx:end_idx]
-    extra = extra_noise_amplitude * extra_noise[idx:end_idx] if extra_noise_amplitude > 0 else np.zeros(end_idx - idx)
+    
+    # Manejo del ruido extra de forma cíclica
+    extra = np.zeros_like(t)  # Inicializamos con ceros
+    if extra_noise_amplitude > 0 and len(extra_noise) > 0:
+        for i in range(len(t)):
+            extra[i] = extra_noise[extra_noise_idx % len(extra_noise)]
+            extra_noise_idx = (extra_noise_idx + 1) % len(extra_noise)
+        extra *= extra_noise_amplitude
+    
     noise_signal = motor + horn + extra
     if len(music_signal) < len(t):
         music_signal = np.pad(music_signal, (0, len(t) - len(music_signal)), 'constant')
         noise_signal = np.pad(noise_signal, (0, len(t) - len(noise_signal)), 'constant')
+    
     return music_signal, noise_signal
 
 # =================== FUNCIONES PID ===================
@@ -149,7 +160,7 @@ def controladorIntegral(error):
 
 # =================== CALLBACK AUDIO ===================
 def audio_callback(outdata, frames, time, status):
-    global music_idx, signals, error_rms, retroalimentacion, entradaAnterior
+    global music_idx, extra_noise_idx, signals, error_rms, retroalimentacion, entradaAnterior
     if is_paused:
         outdata.fill(0)
         return
@@ -164,6 +175,7 @@ def audio_callback(outdata, frames, time, status):
     signals = (music_signal, noise_signal, error, antiruido, salida)
     outdata[:, 0] = np.clip(salida, -1.0, 1.0)
     music_idx = (music_idx + len(t)) % len(music)
+    # Nota: extra_noise_idx se actualiza dentro de generate_signal
     retroalimentacion = salida
 
 # =================== CARGAR AUDIO ===================
@@ -186,19 +198,15 @@ def cargar_musica():
         print(f"Música cargada: {archivo}")
 
 def cargar_ruido():
-    global extra_noise, extra_noise_amplitude
+    global extra_noise, extra_noise_amplitude, extra_noise_idx
     archivo = filedialog.askopenfilename(filetypes=[("Archivos WAV", "*.wav")])
     if archivo:
         y, sr = librosa.load(archivo, sr=sample_rate, mono=True)
         if len(y) == 0:
             return
         y = y / np.max(np.abs(y))
-        if len(y) < len(music):
-            y = np.pad(y, (0, len(music) - len(y)), 'constant')
-        else:
-            y = y[:len(music)]
-        extra_noise = y
-        # No activar automáticamente el volumen del ruido
+        extra_noise = y  # No redimensionamos, permitimos que el ruido extra tenga su propia longitud
+        extra_noise_idx = 0  # Reiniciar el índice al cargar nuevo ruido
         if extra_noise_amplitude == 0:
             extra_noise_amplitude = 0.0
             extra_noise_scale.set(extra_noise_amplitude)
