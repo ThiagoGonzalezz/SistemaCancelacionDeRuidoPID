@@ -7,6 +7,7 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.animation import FuncAnimation
 import librosa
 import os
+from tkinter import filedialog
 
 # =================== CONFIGURACIÓN INICIAL ===================
 sample_rate = 44100
@@ -224,6 +225,38 @@ for ax, title in zip([ax_p, ax_i, ax_d], ["Proporcional", "Integral", "Derivativ
 
 canvas_pid = FigureCanvasTkAgg(fig_pid, master=left_panel)
 canvas_pid.get_tk_widget().grid(row=len(labels)+3, column=0, columnspan=2, pady=10)
+
+def cargar_musica():
+    global music, music_idx
+    archivo = filedialog.askopenfilename(filetypes=[("Archivos WAV", "*.wav")])
+    if archivo:
+        y, sr = librosa.load(archivo, sr=sample_rate, mono=True)
+        if len(y) == 0:
+            return
+        y = y / np.max(np.abs(y))
+        music = y
+        music_idx = 0
+        print(f"Música cargada: {archivo}")
+
+def cargar_ruido():
+    global motor_noise, horn_noise
+    archivo = filedialog.askopenfilename(filetypes=[("Archivos WAV", "*.wav")])
+    if archivo:
+        y, sr = librosa.load(archivo, sr=sample_rate, mono=True)
+        if len(y) == 0:
+            return
+        y = y / np.max(np.abs(y))
+        # Para simplificar reemplazamos ambos ruidos con la misma señal
+        motor_noise = y
+        horn_noise = np.zeros_like(y)  # o también poner horn_noise = y si querés
+        print(f"Ruido cargado: {archivo}")
+
+# Botones para cargar archivos
+btn_cargar_musica = ttk.Button(left_panel, text="Cargar Música (WAV)", command=cargar_musica)
+btn_cargar_musica.grid(row=len(labels)+4, column=0, columnspan=2, pady=5, sticky="ew")
+
+btn_cargar_ruido = ttk.Button(left_panel, text="Cargar Ruido (WAV)", command=cargar_ruido)
+btn_cargar_ruido.grid(row=len(labels)+5, column=0, columnspan=2, pady=5, sticky="ew")
 
 # =================== ANIMACIÓN ===================
 def update_plots(frame):
