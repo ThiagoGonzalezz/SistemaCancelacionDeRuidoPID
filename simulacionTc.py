@@ -213,6 +213,41 @@ root.title("Simulación ANC")
 # Frame para deslizadores
 frame_sliders = ttk.Frame(root)
 frame_sliders.pack(pady=10)
+# Variables dinámicas para mostrar valores PID
+kp_label_var = tk.StringVar(value=f"Kp: {Kp:.2f}")
+ki_label_var = tk.StringVar(value=f"Ki: {Ki:.2f}")
+kd_label_var = tk.StringVar(value=f"Kd: {Kd:.2f}")
+
+def set_Kp(value):
+    global Kp
+    Kp = float(value)
+    kp_label_var.set(f"Kp: {Kp:.2f}")
+
+def set_Ki(value):
+    global Ki
+    Ki = float(value)
+    ki_label_var.set(f"Ki: {Ki:.2f}")
+
+def set_Kd(value):
+    global Kd
+    Kd = float(value)
+    kd_label_var.set(f"Kd: {Kd:.2f}")
+
+# Sliders PID
+kp_scale = ttk.Scale(frame_sliders, from_=0, to=5, orient="horizontal", command=set_Kp)
+kp_scale.set(Kp)
+kp_scale.grid(row=3, column=1, padx=5)
+ttk.Label(frame_sliders, textvariable=kp_label_var).grid(row=3, column=0)
+
+ki_scale = ttk.Scale(frame_sliders, from_=0, to=5, orient="horizontal", command=set_Ki)
+ki_scale.set(Ki)
+ki_scale.grid(row=4, column=1, padx=5)
+ttk.Label(frame_sliders, textvariable=ki_label_var).grid(row=4, column=0)
+
+kd_scale = ttk.Scale(frame_sliders, from_=0, to=5, orient="horizontal", command=set_Kd)
+kd_scale.set(Kd)
+kd_scale.grid(row=5, column=1, padx=5)
+ttk.Label(frame_sliders, textvariable=kd_label_var).grid(row=5, column=0)
 
 # Etiquetas dinámicas
 music_label_var = tk.StringVar(value=f"Amplitud Música: {music_amplitude:.2f}")
