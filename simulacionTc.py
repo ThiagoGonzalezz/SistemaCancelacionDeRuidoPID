@@ -17,7 +17,7 @@ retroalimentacion = 0
 entradaAnterior = 0
 
 Kp = 0
-Ki = 0.8
+Ki = 0
 Kd = 0
 
 primer_error_derivativo = True
@@ -311,9 +311,7 @@ labels = [
 
 for i, (label, cmd, var) in enumerate(labels):
     scale = ttk.Scale(left_panel, from_=0, to=5 if 'K' in label else 1, orient="horizontal", command=cmd)
-    if label == "Ki":
-        scale.set(0.8)
-    elif label == "Ruido Extra":
+    if label == "Ruido Extra":
         scale.set(extra_noise_amplitude)
         extra_noise_scale = scale  # <- Guardamos referencia acá
     else:
