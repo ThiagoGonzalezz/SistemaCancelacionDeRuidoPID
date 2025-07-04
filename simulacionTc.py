@@ -232,11 +232,11 @@ def audio_callback(outdata, frames, time, status):
     salida = music_signal + antiruido + noise_signal
 
     error_rms = np.sqrt(np.mean(error**2))
-    signals = (music_signal, salida, error, antiruido, salida, noise_signal)
     outdata[:, 0] = np.clip(salida, -1.0, 1.0)
     music_idx = (music_idx + len(t)) % len(music)
     # Nota: extra_noise_idx se actualiza dentro de generate_signal
     retroalimentacion = salida
+    signals = (music_signal, salida, error, antiruido, salida, noise_signal)
 
 # =================== CARGAR AUDIO ===================
 def cargar_musica():
@@ -336,7 +336,7 @@ pause_button.grid(row=len(labels)+3, column=0, columnspan=2, pady=5, sticky="ew"
 ttk.Label(left_panel, textvariable=error_rms_var).grid(row=len(labels)+4, column=0, columnspan=2, pady=10)
 
 # Gráficos principales
-fig, axs = plt.subplots(5, 1, figsize=(8, 6), constrained_layout=True)
+fig, axs = plt.subplots(6, 1, figsize=(8, 8), constrained_layout=True)
 axes = axs
 lines = []
 colors = ['blue', 'purple', 'red', 'green', 'brown' ,'orange']
@@ -398,7 +398,7 @@ def update_plots(frame):
     error_rms_var.set(f"Error RMS: {error_rms:.4f}")
     return lines + [line_p, line_i, line_d]
 
-ani = FuncAnimation(fig, update_plots, interval=block_duration * 1000, blit=True)
+ani = FuncAnimation(fig, update_plots, interval=block_duration * 1000, blit=False)
 
 stream = sd.OutputStream(samplerate=sample_rate, channels=1, callback=audio_callback, blocksize=len(t))
 stream.start()
