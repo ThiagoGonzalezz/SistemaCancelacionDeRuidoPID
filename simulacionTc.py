@@ -54,7 +54,7 @@ motor_amplitude = 0.0
 horn_amplitude = 0.0
 enable_pid = True  # Siempre activo
 music_idx = 0
-signals = (np.zeros_like(t), np.zeros_like(t), np.zeros_like(t), np.zeros_like(t), np.zeros_like(t))
+signals = (np.zeros_like(t), np.zeros_like(t), np.zeros_like(t), np.zeros_like(t), np.zeros_like(t), np.zeros_like(t))
 is_paused = False
 stream = None
 error_rms = 0.0
@@ -221,22 +221,38 @@ def controladorDerivativo(error):
 # =================== CALLBACK AUDIO ===================
 def audio_callback(outdata, frames, time, status):
     global music_idx, extra_noise_idx, signals, error_rms, retroalimentacion, entradaAnterior
+
     if is_paused:
         outdata.fill(0)
         return
 
-    error = entradaAnterior - retroalimentacion
     music_signal, noise_signal = generate_signal(t, music_idx)
+
+    # Aseguramos que haya arrays válidos al principio
+    if isinstance(entradaAnterior, (int, float)):
+        entradaAnterior = np.zeros_like(music_signal)
+    if isinstance(retroalimentacion, (int, float)):
+        retroalimentacion = np.zeros_like(music_signal)
+
+    error = entradaAnterior - retroalimentacion
     antiruido = controladorPID(error)
-    entradaAnterior = music_signal
     salida = music_signal + antiruido + noise_signal
 
+    entradaAnterior = music_signal.copy()
+    retroalimentacion = salida.copy()
+
     error_rms = np.sqrt(np.mean(error**2))
-    signals = (music_signal, noise_signal, error, antiruido, salida)
     outdata[:, 0] = np.clip(salida, -1.0, 1.0)
     music_idx = (music_idx + len(t)) % len(music)
-    # Nota: extra_noise_idx se actualiza dentro de generate_signal
-    retroalimentacion = salida
+
+    signals = (
+        music_signal.copy(),
+        salida.copy(),
+        error.copy(),
+        antiruido.copy(),
+        retroalimentacion.copy(),
+        noise_signal.copy()
+    )
 
 # =================== CARGAR AUDIO ===================
 def cargar_musica():
@@ -336,11 +352,11 @@ pause_button.grid(row=len(labels)+3, column=0, columnspan=2, pady=5, sticky="ew"
 ttk.Label(left_panel, textvariable=error_rms_var).grid(row=len(labels)+4, column=0, columnspan=2, pady=10)
 
 # Gráficos principales
-fig, axs = plt.subplots(5, 1, figsize=(8, 6), constrained_layout=True)
+fig, axs = plt.subplots(6, 1, figsize=(8, 8), constrained_layout=True)
 axes = axs
 lines = []
-colors = ['blue', 'red', 'green', 'purple', 'orange']
-titles = ["Música", "Ruido", "Error", "Antirruido", "Salida"]
+colors = ['blue', 'purple', 'red', 'green', 'brown' ,'orange']
+titles = ["Θi - (Música)", "Θo - (Sonido percibido por el usuario)", "e - (Sonido residual que no pudo ser cancelado)", "Θoc - (Señal antirruido)", "f unitaria - (Sonido captado por el micrófono interno)", "P - (Ruido externo)"]
 for ax, title, c in zip(axs, titles, colors):
     line, = ax.plot(t, np.zeros_like(t), color=c)
     ax.set_title(title)
@@ -350,7 +366,7 @@ for ax, title, c in zip(axs, titles, colors):
 canvas_main = FigureCanvasTkAgg(fig, master=right_panel)
 canvas_main.get_tk_widget().pack(fill="both", expand=True)
 
-line_music, line_noise, line_error, line_control, line_output = lines
+line_music, line_output, line_error, line_control, line_feedback, line_noise = lines
 
 # Gráficos PID debajo del panel izquierdo
 fig_pid, (ax_p, ax_i, ax_d) = plt.subplots(3, 1, figsize=(3, 2.5), dpi=100, constrained_layout=True)
@@ -372,16 +388,17 @@ def update_plots(frame):
     if is_paused:
         return lines + [line_p, line_i, line_d]
 
-    music_signal, noise_signal, error, anti_noise, output = signals
+    music_signal, output, error, anti_noise, retroalimentacion, noise_signal = signals
     proportional = np.full_like(t, controladorProporcional(error))
     integral = np.full_like(t, controladorIntegral(error))
     derivative = np.full_like(t, controladorDerivativo(error))
 
     line_music.set_ydata(music_signal)
-    line_noise.set_ydata(noise_signal)
+    line_output.set_ydata(output)
     line_error.set_ydata(error)
     line_control.set_ydata(anti_noise)
-    line_output.set_ydata(output)
+    line_feedback.set_ydata(retroalimentacion)
+    line_noise.set_ydata(noise_signal)
     line_p.set_ydata(proportional)
     line_i.set_ydata(integral)
     line_d.set_ydata(derivative)
