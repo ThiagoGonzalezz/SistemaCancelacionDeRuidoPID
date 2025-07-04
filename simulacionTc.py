@@ -339,8 +339,8 @@ ttk.Label(left_panel, textvariable=error_rms_var).grid(row=len(labels)+4, column
 fig, axs = plt.subplots(5, 1, figsize=(8, 6), constrained_layout=True)
 axes = axs
 lines = []
-colors = ['blue', 'red', 'green', 'purple', 'orange']
-titles = ["Música", "Ruido", "Error", "Antirruido", "Salida"]
+colors = ['blue', 'purple', 'red', 'green', 'brown' ,'orange']
+titles = ["Θi - (Música)", "Θo - (Sonido percibido por el usuario)", "e - (Sonido residual que no pudo ser cancelado)", "Θoc - (Señal antirruido)", "f unitaria - (Sonido captado por el micrófono interno)", "P - (Ruido externo)"]
 for ax, title, c in zip(axs, titles, colors):
     line, = ax.plot(t, np.zeros_like(t), color=c)
     ax.set_title(title)
@@ -372,7 +372,7 @@ def update_plots(frame):
     if is_paused:
         return lines + [line_p, line_i, line_d]
 
-    music_signal, noise_signal, error, anti_noise, output = signals
+    music_signal, output, error, anti_noise, retroalimentacion, noise_signal = signals
     proportional = np.full_like(t, controladorProporcional(error))
     integral = np.full_like(t, controladorIntegral(error))
     derivative = np.full_like(t, controladorDerivativo(error))
