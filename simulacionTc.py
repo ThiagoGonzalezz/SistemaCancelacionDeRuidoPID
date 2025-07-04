@@ -363,6 +363,10 @@ for ax, title, c in zip(axs, titles, colors):
     ax.set_xlim(0, block_duration)
     ax.grid(True)
     lines.append(line)
+
+line_error_music, = axs[2].plot(t, np.zeros_like(t), color='skyblue', linestyle='--', label="Música")
+line_error_output, = axs[2].plot(t, np.zeros_like(t), color='lightcoral', linestyle='--', label="Salida")
+line_error_diff, = axs[2].plot(t, np.zeros_like(t), color='darkred', linewidth=2.0, label="Error (Entrada - Salida)")
 canvas_main = FigureCanvasTkAgg(fig, master=right_panel)
 canvas_main.get_tk_widget().pack(fill="both", expand=True)
 
@@ -386,7 +390,7 @@ canvas_pid.get_tk_widget().grid(row=len(labels)+5, column=0, columnspan=2, pady=
 def update_plots(frame):
     global error_rms
     if is_paused:
-        return lines + [line_p, line_i, line_d]
+        return lines + [line_error_music, line_error_output, line_error_diff, line_p, line_i, line_d]
 
     music_signal, output, error, anti_noise, retroalimentacion, noise_signal = signals
     proportional = np.full_like(t, controladorProporcional(error))
@@ -395,7 +399,9 @@ def update_plots(frame):
 
     line_music.set_ydata(music_signal)
     line_output.set_ydata(output)
-    line_error.set_ydata(error)
+    line_error_music.set_ydata(music_signal)      # azul claro
+    line_error_output.set_ydata(output)           # rojo claro
+    line_error_diff.set_ydata(music_signal - output)  # rojo oscuro
     line_control.set_ydata(anti_noise)
     line_feedback.set_ydata(retroalimentacion)
     line_noise.set_ydata(noise_signal)
@@ -412,7 +418,7 @@ def update_plots(frame):
         ax.set_ylim(-max_val, max_val)
 
     error_rms_var.set(f"Error RMS: {error_rms:.4f}")
-    return lines + [line_p, line_i, line_d]
+    return lines + [line_error_music, line_error_output, line_error_diff, line_p, line_i, line_d]
 
 ani = FuncAnimation(fig, update_plots, interval=block_duration * 1000, blit=True)
 
