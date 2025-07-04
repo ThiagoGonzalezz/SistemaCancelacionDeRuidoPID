@@ -232,7 +232,7 @@ def audio_callback(outdata, frames, time, status):
     salida = music_signal + antiruido + noise_signal
 
     error_rms = np.sqrt(np.mean(error**2))
-    signals = (music_signal, noise_signal, error, antiruido, salida)
+    signals = (music_signal, salida, error, antiruido, salida, noise_signal)
     outdata[:, 0] = np.clip(salida, -1.0, 1.0)
     music_idx = (music_idx + len(t)) % len(music)
     # Nota: extra_noise_idx se actualiza dentro de generate_signal
@@ -350,7 +350,7 @@ for ax, title, c in zip(axs, titles, colors):
 canvas_main = FigureCanvasTkAgg(fig, master=right_panel)
 canvas_main.get_tk_widget().pack(fill="both", expand=True)
 
-line_music, line_noise, line_error, line_control, line_output = lines
+line_music, line_output, line_error, line_control, line_feedback, line_noise = lines
 
 # Gráficos PID debajo del panel izquierdo
 fig_pid, (ax_p, ax_i, ax_d) = plt.subplots(3, 1, figsize=(3, 2.5), dpi=100, constrained_layout=True)
@@ -378,10 +378,11 @@ def update_plots(frame):
     derivative = np.full_like(t, controladorDerivativo(error))
 
     line_music.set_ydata(music_signal)
-    line_noise.set_ydata(noise_signal)
+    line_output.set_ydata(output)
     line_error.set_ydata(error)
     line_control.set_ydata(anti_noise)
-    line_output.set_ydata(output)
+    line_feedback.set_ydata(retroalimentacion)
+    line_noise.set_ydata(noise_signal)
     line_p.set_ydata(proportional)
     line_i.set_ydata(integral)
     line_d.set_ydata(derivative)
