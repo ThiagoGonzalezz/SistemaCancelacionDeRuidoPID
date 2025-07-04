@@ -164,7 +164,6 @@ def controladorDerivativo(error):
         pendiente_error = np.mean(error - errorAnterior) / dt if np.any(error - errorAnterior) else 0.0
         errorAnterior = error.copy() 
         
-        #acá empieza lo fake
         music_signal = signals[0]  
         noise_signal = signals[1]  
 
@@ -183,7 +182,7 @@ def controladorDerivativo(error):
         derivative_output = np.zeros_like(music_signal)
         if flag_deriva:
             anti_noise = -noise_signal * 0.2 
-            derivative_output = Kd * anti_noise #acá si le ponemos algo de la pendiente del error capaz pasa  
+            derivative_output = Kd * anti_noise 
             horn_active_var.set(f"Ruido activo: Sí (Ratio: {noise_to_music_ratio:.2f}, Pendiente: {pendiente_error:.3f})")
         else:
             # si no hay cambio brusco, derivativo nulo
@@ -198,24 +197,6 @@ def controladorDerivativo(error):
     except Exception as e:
         print(f"Error en controladorDerivativo: {e}")
         return np.zeros_like(signals[0])
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 # =================== CALLBACK AUDIO ===================
