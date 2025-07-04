@@ -54,7 +54,7 @@ motor_amplitude = 0.0
 horn_amplitude = 0.0
 enable_pid = True  # Siempre activo
 music_idx = 0
-signals = (np.zeros_like(t), np.zeros_like(t), np.zeros_like(t), np.zeros_like(t), np.zeros_like(t))
+signals = (np.zeros_like(t), np.zeros_like(t), np.zeros_like(t), np.zeros_like(t), np.zeros_like(t), np.zeros_like(t))
 is_paused = False
 stream = None
 error_rms = 0.0
@@ -221,22 +221,38 @@ def controladorDerivativo(error):
 # =================== CALLBACK AUDIO ===================
 def audio_callback(outdata, frames, time, status):
     global music_idx, extra_noise_idx, signals, error_rms, retroalimentacion, entradaAnterior
+
     if is_paused:
         outdata.fill(0)
         return
 
-    error = entradaAnterior - retroalimentacion
     music_signal, noise_signal = generate_signal(t, music_idx)
+
+    # Aseguramos que haya arrays válidos al principio
+    if isinstance(entradaAnterior, (int, float)):
+        entradaAnterior = np.zeros_like(music_signal)
+    if isinstance(retroalimentacion, (int, float)):
+        retroalimentacion = np.zeros_like(music_signal)
+
+    error = entradaAnterior - retroalimentacion
     antiruido = controladorPID(error)
-    entradaAnterior = music_signal
     salida = music_signal + antiruido + noise_signal
+
+    entradaAnterior = music_signal.copy()
+    retroalimentacion = salida.copy()
 
     error_rms = np.sqrt(np.mean(error**2))
     outdata[:, 0] = np.clip(salida, -1.0, 1.0)
     music_idx = (music_idx + len(t)) % len(music)
-    # Nota: extra_noise_idx se actualiza dentro de generate_signal
-    retroalimentacion = salida
-    signals = (music_signal, salida, error, antiruido, salida, noise_signal)
+
+    signals = (
+        music_signal.copy(),
+        salida.copy(),
+        error.copy(),
+        antiruido.copy(),
+        retroalimentacion.copy(),
+        noise_signal.copy()
+    )
 
 # =================== CARGAR AUDIO ===================
 def cargar_musica():
@@ -398,7 +414,7 @@ def update_plots(frame):
     error_rms_var.set(f"Error RMS: {error_rms:.4f}")
     return lines + [line_p, line_i, line_d]
 
-ani = FuncAnimation(fig, update_plots, interval=block_duration * 1000, blit=False)
+ani = FuncAnimation(fig, update_plots, interval=block_duration * 1000, blit=True)
 
 stream = sd.OutputStream(samplerate=sample_rate, channels=1, callback=audio_callback, blocksize=len(t))
 stream.start()
