@@ -60,6 +60,8 @@ stream = None
 error_rms = 0.0
 output_max = 0.5
 
+enable_feedforward = False
+
 # =================== FUNCIONES DE CONTROL ===================
 def set_music_amplitude(value):
     global music_amplitude
@@ -199,6 +201,22 @@ def controladorDerivativo(error):
         return np.zeros_like(signals[0])
 
 
+# =================== CONTROLADOR FEEDFORWARD ===================
+# Activar/Desactivar feedforward
+def toggle_feedforward():
+    global enable_feedforward
+    enable_feedforward = feedforward_var.get()
+
+def controladorFeedFoward(ruidoExternoCaptado):
+#Simulo pequeño error?
+    if enable_feedforward:
+        ruido_estimado = ruidoExternoCaptado + np.random.normal(0, 0.0005, size=ruidoExternoCaptado.shape)
+
+
+        return np.clip(-ruido_estimado, -output_max, output_max)  # Fase inversa
+    return np.zeros_like(ruidoExternoCaptado)
+
+
 # =================== CALLBACK AUDIO ===================
 def audio_callback(outdata, frames, time, status):
     global music_idx, extra_noise_idx, signals, error_rms, retroalimentacion, entradaAnterior
@@ -216,8 +234,9 @@ def audio_callback(outdata, frames, time, status):
         retroalimentacion = np.zeros_like(music_signal)
 
     error = entradaAnterior - retroalimentacion
-    antiruido = controladorPID(error)
-    salida = music_signal + antiruido + noise_signal
+    antiruidoFeedForward = controladorFeedFoward(noise_signal)
+    antiruidoPID = controladorPID(error)
+    salida = music_signal + antiruidoPID + noise_signal + antiruidoFeedForward
 
     entradaAnterior = music_signal.copy()
     retroalimentacion = salida.copy()
@@ -230,7 +249,7 @@ def audio_callback(outdata, frames, time, status):
         music_signal.copy(),
         salida.copy(),
         error.copy(),
-        antiruido.copy(),
+        antiruidoPID.copy(),
         retroalimentacion.copy(),
         noise_signal.copy()
     )
@@ -332,6 +351,9 @@ pause_button.grid(row=len(labels)+3, column=0, columnspan=2, pady=5, sticky="ew"
 
 ttk.Label(left_panel, textvariable=error_rms_var).grid(row=len(labels)+4, column=0, columnspan=2, pady=10)
 
+
+
+
 # Gráficos principales
 fig, axs = plt.subplots(6, 1, figsize=(8, 8), constrained_layout=True)
 axes = axs
@@ -364,8 +386,19 @@ for ax, title in zip([ax_p, ax_i, ax_d], ["Proporcional", "Integral", "Derivativ
     ax.set_xlim(0, block_duration)
     ax.grid(True)
 
+# Casilla Feedforward (después de sliders PID)
+feedforward_var = tk.BooleanVar(value=False)
+ttk.Checkbutton(
+    left_panel,
+    text="Activar Control Feedforward",
+    variable=feedforward_var,
+    command=toggle_feedforward
+).grid(row=len(labels)+5, column=0, columnspan=2, pady=5, sticky="w")
+
+# Gráficos PID debajo
 canvas_pid = FigureCanvasTkAgg(fig_pid, master=left_panel)
-canvas_pid.get_tk_widget().grid(row=len(labels)+5, column=0, columnspan=2, pady=10)
+canvas_pid.get_tk_widget().grid(row=len(labels)+6, column=0, columnspan=2, pady=10)
+
 
 # =================== ANIMACIÓN ===================
 def update_plots(frame):
