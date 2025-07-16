@@ -68,6 +68,7 @@ signals = (
     np.zeros_like(t), 
     np.zeros_like(t), 
     np.zeros_like(t), 
+    np.zeros_like(t),
     np.zeros_like(t)
     )
 
@@ -273,7 +274,8 @@ def audio_callback(outdata, frames, time, status):
         retroalimentacion.copy(),
         noise_signal.copy(),
         intern_noise_signal.copy(),
-        extern_noise_signal.copy()
+        extern_noise_signal.copy(),
+        antiruidoFeedForward.copy()
     )
 
 # =================== CARGAR AUDIO ===================
@@ -380,7 +382,7 @@ ttk.Label(left_panel, textvariable=error_rms_var).grid(row=len(labels)+4, column
 
 
 # Gráficos principales
-fig, axs = plt.subplots(8, 1, figsize=(9, 10), constrained_layout=True)
+fig, axs = plt.subplots(9, 1, figsize=(9, 10), constrained_layout=True)
 axes = axs
 lines = []
 colors = [
@@ -391,18 +393,20 @@ colors = [
     'brown' ,
     'orange', 
     '#00008B', 
-    '#A0522D'
+    '#A0522D',
+    "#0cb7f2"
     ]
 
 titles = [
     "Θi - (Música)", 
     "Θo - (Sonido percibido por el usuario)", 
     "e - (Sonido residual que no pudo ser cancelado)", 
-    "Θoc - (Señal antirruido)", 
+    "Θoc PID - (Señal antirruido PID)", 
     "f unitaria - (Sonido captado por el micrófono interno)", 
     "Ptotal - (Ruido externo e interno)", 
     "Pi - (Ruido interno)", 
-    "Pe (Ruido externo)"
+    "Pe (Ruido externo)",
+    "Θoc Feedforward - (Señal antirruido Feedforward)"
     ]
 
 for ax, title, c in zip(axs, titles, colors):
@@ -418,7 +422,7 @@ line_error_diff, = axs[2].plot(t, np.zeros_like(t), color='darkred', linewidth=2
 canvas_main = FigureCanvasTkAgg(fig, master=scrollable_frame)
 canvas_main.get_tk_widget().pack(fill="both", expand=True)
 
-line_music, line_output, line_error, line_control, line_feedback, line_noise, line_noise_internal, line_noise_external = lines
+line_music, line_output, line_error, line_control, line_feedback, line_noise, line_noise_internal, line_noise_external, line_feedforward = lines
 
 # Gráficos PID debajo del panel izquierdo
 fig_pid, (ax_p, ax_i, ax_d) = plt.subplots(3, 1, figsize=(3, 2.5), dpi=100, constrained_layout=True)
@@ -455,7 +459,7 @@ def update_plots(frame):
     if is_paused:
         return lines + [line_error_music, line_error_output, line_error_diff, line_p, line_i, line_d]
 
-    music_signal, output, error, anti_noise, retroalimentacion, noise_signal, intern_noise_signal, extern_noise_signal = signals
+    music_signal, output, error, anti_noise, retroalimentacion, noise_signal, intern_noise_signal, extern_noise_signal, feedforward_signal = signals
     proportional = np.full_like(t, controladorProporcional(error))
     integral = np.full_like(t, controladorIntegral(error))
     derivative = np.full_like(t, controladorDerivativo(error))
@@ -470,6 +474,7 @@ def update_plots(frame):
     line_noise.set_ydata(noise_signal)
     line_noise_internal.set_ydata(intern_noise_signal)
     line_noise_external.set_ydata(extern_noise_signal)
+    line_feedforward.set_ydata(feedforward_signal)
 
     line_p.set_ydata(proportional)
     line_i.set_ydata(integral)
