@@ -136,28 +136,31 @@ def on_slider_change(value):
 # =================== FUNCIONES DE SEÑAL ===================
 def generate_signal(t, idx):
     global extra_noise_idx
-    idx = idx % len(music)
-    end_idx = min(idx + len(t), len(music))
-    music_signal = music_amplitude * music[idx:end_idx]
-    motor = motor_amplitude * motor_noise[idx:end_idx]
-    horn = horn_amplitude * horn_noise[idx:end_idx]
-    
-    # Manejo del ruido extra de forma cíclica
-    extra = np.zeros_like(t)  # Inicializamos con ceros
-    if extra_noise_amplitude > 0 and len(extra_noise) > 0:
-        for i in range(len(t)):
+
+    music_signal = np.zeros_like(t)
+    motor = np.zeros_like(t)
+    horn = np.zeros_like(t)
+    extra = np.zeros_like(t)
+
+    for i in range(len(t)):
+        sample_idx = (idx + i) % len(music)
+        music_signal[i] = music[sample_idx]
+
+        motor[i] = motor_noise[(idx + i) % len(motor_noise)]
+        horn[i] = horn_noise[(idx + i) % len(horn_noise)]
+
+        if extra_noise_amplitude > 0 and len(extra_noise) > 0:
             extra[i] = extra_noise[extra_noise_idx % len(extra_noise)]
             extra_noise_idx = (extra_noise_idx + 1) % len(extra_noise)
-        extra *= extra_noise_amplitude
-    
+
+    music_signal *= music_amplitude
+    motor *= motor_amplitude
+    horn *= horn_amplitude
+    extra *= extra_noise_amplitude
+
     noise_signal = motor + horn + extra
     intern_noise_signal = extra
     extern_noise_signal = motor + horn
-    if len(music_signal) < len(t):
-        music_signal = np.pad(music_signal, (0, len(t) - len(music_signal)), 'constant')
-        noise_signal = np.pad(noise_signal, (0, len(t) - len(noise_signal)), 'constant')
-        extern_noise_signal = np.pad(extern_noise_signal, (0, len(t) - len(extern_noise_signal)), 'constant')
-        intern_noise_signal = np.pad(intern_noise_signal, (0, len(t) - len(intern_noise_signal)), 'constant')
 
     return music_signal, noise_signal, intern_noise_signal, extern_noise_signal
 
