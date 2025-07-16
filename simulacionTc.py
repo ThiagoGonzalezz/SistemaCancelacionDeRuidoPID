@@ -44,8 +44,14 @@ for i in range(0, min_length, pulse_interval):
 motor_noise = motor_noise / np.max(np.abs(motor_noise))
 horn_noise = horn_noise / np.max(np.abs(horn_noise))
 
-# Ruido extra cargado por el usuario
-extra_noise = np.zeros_like(motor_noise)
+# Ruido de crasstalk
+try:
+    extra_noise, _ = librosa.load('crosstalk.wav', sr=sample_rate, mono=True)
+    extra_noise = extra_noise / np.max(np.abs(extra_noise))  # Normalizar
+except FileNotFoundError as e:
+    print(f"Error: {e}. Asegúrate de que 'crosstalk.wav' esté en {os.getcwd()}")
+    exit(1)
+
 extra_noise_amplitude = 0.0
 extra_noise_idx = 0  
 
@@ -81,7 +87,7 @@ def set_horn_amplitude(value):
 def set_extra_noise_amplitude(value):
     global extra_noise_amplitude
     extra_noise_amplitude = float(value)
-    extra_noise_label_var.set(f"Amplitud Ruido Extra: {extra_noise_amplitude:.2f}")
+    extra_noise_label_var.set(f"Amplitud Crosstalk: {extra_noise_amplitude:.2f}")
 
 def set_Kp(value):
     global Kp
@@ -273,21 +279,6 @@ def cargar_musica():
         primer_error_derivativo = True
         print(f"Música cargada: {archivo}")
 
-def cargar_ruido():
-    global extra_noise, extra_noise_amplitude, extra_noise_idx
-    archivo = filedialog.askopenfilename(filetypes=[("Archivos WAV", "*.wav")])
-    if archivo:
-        y, sr = librosa.load(archivo, sr=sample_rate, mono=True)
-        if len(y) == 0:
-            return
-        y = y / np.max(np.abs(y))
-        extra_noise = y  # No redimensionamos, permitimos que el ruido extra tenga su propia longitud
-        extra_noise_idx = 0  # Reiniciar el índice al cargar nuevo ruido
-        if extra_noise_amplitude == 0:
-            extra_noise_amplitude = 0.0
-            extra_noise_scale.set(extra_noise_amplitude)
-        extra_noise_label_var.set(f"Amplitud Ruido Extra: {extra_noise_amplitude:.2f}")
-        print(f"Ruido cargado: {archivo}")
 
 # =================== INTERFAZ ===================
 root = tk.Tk()
@@ -319,7 +310,7 @@ labels = [
     ("Música", set_music_amplitude, music_label_var),
     ("Motor", set_motor_amplitude, motor_label_var),
     ("Bocinazo", set_horn_amplitude, horn_label_var),
-    ("Ruido Extra", set_extra_noise_amplitude, extra_noise_label_var),
+    ("Crosstalk", set_extra_noise_amplitude, extra_noise_label_var),
     ("Kp", set_Kp, kp_label_var),
     ("Ki", set_Ki, ki_label_var),
     ("Kd", set_Kd, kd_label_var),
@@ -327,7 +318,7 @@ labels = [
 
 for i, (label, cmd, var) in enumerate(labels):
     scale = ttk.Scale(left_panel, from_=0, to=5 if 'K' in label else 1, orient="horizontal", command=cmd)
-    if label == "Ruido Extra":
+    if label == "Crosstalk":
         scale.set(extra_noise_amplitude)
         extra_noise_scale = scale  # <- Guardamos referencia acá
     else:
@@ -338,9 +329,6 @@ for i, (label, cmd, var) in enumerate(labels):
 # Botones cargar música y ruido
 btn_cargar_musica = ttk.Button(left_panel, text="Cargar Música (WAV)", command=cargar_musica)
 btn_cargar_musica.grid(row=len(labels), column=0, columnspan=2, pady=5, sticky="ew")
-
-btn_cargar_ruido = ttk.Button(left_panel, text="Cargar Ruido (WAV)", command=cargar_ruido)
-btn_cargar_ruido.grid(row=len(labels)+1, column=0, columnspan=2, pady=5, sticky="ew")
 
 # Botón reiniciar integral y pausa
 reset_btn = ttk.Button(left_panel, text="Reiniciar Integral", command=reset_integral)
