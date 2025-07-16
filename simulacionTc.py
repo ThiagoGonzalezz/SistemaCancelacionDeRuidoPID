@@ -44,7 +44,7 @@ for i in range(0, min_length, pulse_interval):
 motor_noise = motor_noise / np.max(np.abs(motor_noise))
 horn_noise = horn_noise / np.max(np.abs(horn_noise))
 
-# Ruido de crasstalk
+# Ruido de crosstalk
 try:
     extra_noise, _ = librosa.load('crosstalk.wav', sr=sample_rate, mono=True)
     extra_noise = extra_noise / np.max(np.abs(extra_noise))  # Normalizar
@@ -78,6 +78,7 @@ error_rms = 0.0
 output_max = 0.5
 
 enable_feedforward = False
+
 
 # =================== FUNCIONES DE CONTROL ===================
 def set_music_amplitude(value):
@@ -128,6 +129,9 @@ def toggle_pause():
         stream.stop()
     else:
         stream.start()
+
+def on_slider_change(value):
+    altura_label_var.set(f"Altura: {float(value):.2f}x")
 
 # =================== FUNCIONES DE SEÑAL ===================
 def generate_signal(t, idx):
@@ -344,6 +348,8 @@ ki_label_var = tk.StringVar()
 kd_label_var = tk.StringVar()
 error_rms_var = tk.StringVar()
 horn_active_var = tk.StringVar(value="Ruido activo: No")
+altura_var = tk.DoubleVar(value=1.11)  # Altura por gráfico (9 gráficos, 10 pulgadas totales iniciales → 10/9 ≈ 1.11)
+altura_label_var = tk.StringVar(value=f"Altura: {altura_var.get():.2f}x")
 
 labels = [
     ("Música", set_music_amplitude, music_label_var),
@@ -444,9 +450,30 @@ ttk.Checkbutton(
     command=toggle_feedforward
 ).grid(row=len(labels)+5, column=0, columnspan=2, pady=5, sticky="w")
 
+# Slider de altura de los gráficos
+ttk.Label(left_panel, textvariable=altura_label_var).grid(row=len(labels)+6, column=0, sticky="w")
+altura_slider = ttk.Scale(
+    left_panel, from_=0.8, to=3.0, variable=altura_var,
+    orient="horizontal", command=on_slider_change
+)
+altura_slider.grid(row=len(labels)+6, column=1, sticky="ew")
+
+# Botón para aplicar altura
+def aplicar_altura():
+    nueva_altura = altura_var.get()
+    fig.set_size_inches(9, nueva_altura * 9)  # Cambia la altura total
+    canvas_main.draw()
+    canvas_main.get_tk_widget().config(height=int(nueva_altura * 300))  # Ajusta el alto del widget visual
+
+
+
+ttk.Button(left_panel, text="Aplicar Altura", command=aplicar_altura).grid(
+    row=len(labels)+7, column=0, columnspan=2, pady=5, sticky="ew"
+)
+
 # Gráficos PID debajo
 canvas_pid = FigureCanvasTkAgg(fig_pid, master=left_panel)
-canvas_pid.get_tk_widget().grid(row=len(labels)+6, column=0, columnspan=2, pady=10)
+canvas_pid.get_tk_widget().grid(row=len(labels)+8, column=0, columnspan=2, pady=10)
 
 def _on_mousewheel(event):
     canvas_frame.yview_scroll(int(-1 * (event.delta / 120)), "units")
