@@ -202,8 +202,12 @@ def controladorDerivativo(error):
             noise_signal = np.pad(noise_signal, (0, len(music_signal) - len(noise_signal)), mode='constant')
 
         # detección pendiente no nula
-        noise_peak = np.max(np.abs(noise_signal)) if np.any(noise_signal) else 0.0
-        music_peak = np.max(np.abs(music_signal)) if np.any(music_signal) else 1e-10
+        noise_peak = np.max(np.abs(noise_signal)) if np.any(np.isfinite(noise_signal)) else 0.0
+        music_peak = np.max(np.abs(music_signal)) if np.any(np.isfinite(music_signal)) else 1e-10
+
+        # Evitar divisiones peligrosas
+        music_peak = max(music_peak, 1e-6)
+
         noise_to_music_ratio = noise_peak / music_peak if music_peak > 0 else 0.0
 
         flag_deriva = (noise_peak > 0.02 and noise_to_music_ratio > 0.8 and 
@@ -221,6 +225,7 @@ def controladorDerivativo(error):
 
         # Limitamos la salida para lograr estabilidad
         derivative_output = np.clip(derivative_output, -output_max * 0.1, output_max * 0.1)
+        derivative_output = np.nan_to_num(derivative_output, nan=0.0, posinf=0.0, neginf=0.0)
 
         return derivative_output
 
@@ -518,17 +523,59 @@ def update_plots(frame):
     line_d.set_ydata(derivative)
 
     for ax, signal in zip(axes, signals):
+        if not np.any(np.isfinite(signal)):
+            continue  # evitar crasheo si todo es NaN o inf
         max_val = max(np.max(np.abs(signal)) * 1.5, 0.1)
+        max_val = min(max_val, 2.0)  # límite máximo para que no explote la escala
         ax.set_ylim(-max_val, max_val)
 
-    for ax, signal in zip([ax_p, ax_i, ax_d], [proportional, integral, derivative]):
-        max_val = max(np.max(np.abs(signal)) * 1.5, 0.1)
-        ax.set_ylim(-max_val, max_val)
+
+    #for ax, signal in zip([ax_p, ax_i, ax_d], [proportional, integral, derivative]):
+     #   if not np.any(np.isfinite(signal)):
+      #      continue
+       # max_val = max(np.max(np.abs(signal)) * 1.5, 0.1)
+        #max_val = min(max_val, 2.0)
+        #ax.set_ylim(-max_val, max_val)
+
 
     error_rms_var.set(f"Error RMS: {error_rms:.4f}")
+
     return lines + [line_error_music, line_error_output, line_error_diff, line_p, line_i, line_d]
 
+def update_pid_plots(frame):
+    if is_paused:
+        return [line_p, line_i, line_d]
+
+    music_signal, output, error, anti_noise, retroalimentacion, noise_signal, intern_noise_signal, extern_noise_signal, feedforward_signal = signals
+
+    # Asegurar que todos los valores sean arrays para evitar errores visuales
+    p_val = controladorProporcional(error)
+    i_val = controladorIntegral(error)
+    d_val = controladorDerivativo(error)
+
+    proportional = p_val if isinstance(p_val, np.ndarray) else np.full_like(t, p_val)
+    integral = i_val if isinstance(i_val, np.ndarray) else np.full_like(t, i_val)
+    derivative = d_val if isinstance(d_val, np.ndarray) else np.full_like(t, d_val)
+
+    line_p.set_ydata(proportional)
+    line_i.set_ydata(integral)
+    line_d.set_ydata(derivative)
+
+    for ax, signal in zip([ax_p, ax_i, ax_d], [proportional, integral, derivative]):
+        if not np.any(np.isfinite(signal)):
+            continue
+        max_val = max(np.max(np.abs(signal)) * 1.5, 0.1)
+        max_val = min(max_val, 2.0)
+        ax.set_ylim(-max_val, max_val)
+
+    return [line_p, line_i, line_d]
+
+
+#Hilo Canvas principal
 ani = FuncAnimation(fig, update_plots, interval=block_duration * 1000, blit=True)
+
+#Hilo Canvas PID
+ani_pid = FuncAnimation(fig_pid, update_pid_plots, interval=block_duration * 1000, blit=True)
 
 stream = sd.OutputStream(samplerate=sample_rate, channels=1, callback=audio_callback, blocksize=len(t))
 stream.start()
