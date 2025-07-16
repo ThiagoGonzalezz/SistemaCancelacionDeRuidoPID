@@ -373,16 +373,16 @@ for i, (label, cmd, var) in enumerate(labels):
 
 # Botones cargar música y ruido
 btn_cargar_musica = ttk.Button(left_panel, text="Cargar Música (WAV)", command=cargar_musica)
-btn_cargar_musica.grid(row=len(labels), column=0, columnspan=2, pady=5, sticky="ew")
+btn_cargar_musica.grid(row=len(labels), column=0, columnspan=2, pady=2, sticky="ew")
 
 # Botón reiniciar integral y pausa
 reset_btn = ttk.Button(left_panel, text="Reiniciar Integral", command=reset_integral)
-reset_btn.grid(row=len(labels)+2, column=0, columnspan=2, pady=5, sticky="ew")
+reset_btn.grid(row=len(labels)+2, column=0, columnspan=2, pady=2, sticky="ew")
 
 pause_button = ttk.Button(left_panel, text="Pausar", command=toggle_pause)
-pause_button.grid(row=len(labels)+3, column=0, columnspan=2, pady=5, sticky="ew")
+pause_button.grid(row=len(labels)+3, column=0, columnspan=2, pady=2, sticky="ew")
 
-ttk.Label(left_panel, textvariable=error_rms_var).grid(row=len(labels)+4, column=0, columnspan=2, pady=10)
+ttk.Label(left_panel, textvariable=error_rms_var).grid(row=len(labels)+4, column=0, columnspan=2, pady=0)
 
 
 
@@ -451,6 +451,7 @@ ttk.Checkbutton(
 ).grid(row=len(labels)+5, column=0, columnspan=2, pady=5, sticky="w")
 
 # Slider de altura de los gráficos
+# Slider + botón de altura en una sola fila
 ttk.Label(left_panel, textvariable=altura_label_var).grid(row=len(labels)+6, column=0, sticky="w")
 altura_slider = ttk.Scale(
     left_panel, from_=0.8, to=6.0, variable=altura_var,
@@ -471,10 +472,11 @@ def aplicar_altura():
     # Actualizar tamaño visual del widget gráfico
     canvas_main.get_tk_widget().config(height=new_pixel_height)
 
-
+# Botón aplicar altura en la misma fila, tercera columna
 ttk.Button(left_panel, text="Aplicar Altura", command=aplicar_altura).grid(
     row=len(labels)+7, column=0, columnspan=2, pady=5, sticky="ew"
 )
+
 
 # Gráficos PID debajo
 canvas_pid = FigureCanvasTkAgg(fig_pid, master=left_panel)
