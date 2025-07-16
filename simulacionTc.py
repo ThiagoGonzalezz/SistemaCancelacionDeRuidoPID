@@ -309,6 +309,27 @@ left_panel.pack(side="left", fill="y", padx=10, pady=10)
 right_panel = ttk.Frame(main_frame)
 right_panel.pack(side="right", fill="both", expand=True)
 
+# Crear canvas con scrollbar
+canvas_frame = tk.Canvas(right_panel)
+scrollbar = ttk.Scrollbar(right_panel, orient="vertical", command=canvas_frame.yview)
+scrollable_frame = ttk.Frame(canvas_frame)
+
+# Ajustar el scroll automáticamente al contenido
+scrollable_frame.bind(
+    "<Configure>",
+    lambda e: canvas_frame.configure(
+        scrollregion=canvas_frame.bbox("all")
+    )
+)
+
+# Insertar el frame scrollable dentro del canvas
+canvas_frame.create_window((0, 0), window=scrollable_frame, anchor="nw")
+canvas_frame.configure(yscrollcommand=scrollbar.set)
+
+# Empaquetar
+canvas_frame.pack(side="left", fill="both", expand=True)
+scrollbar.pack(side="right", fill="y")
+
 extra_noise_scale = None
 
 # Controles
@@ -359,7 +380,7 @@ ttk.Label(left_panel, textvariable=error_rms_var).grid(row=len(labels)+4, column
 
 
 # Gráficos principales
-fig, axs = plt.subplots(8, 1, figsize=(8, 10), constrained_layout=True)
+fig, axs = plt.subplots(8, 1, figsize=(9, 10), constrained_layout=True)
 axes = axs
 lines = []
 colors = [
@@ -394,7 +415,7 @@ for ax, title, c in zip(axs, titles, colors):
 line_error_music, = axs[2].plot(t, np.zeros_like(t), color='skyblue', linestyle='--', label="Música")
 line_error_output, = axs[2].plot(t, np.zeros_like(t), color='lightcoral', linestyle='--', label="Salida")
 line_error_diff, = axs[2].plot(t, np.zeros_like(t), color='darkred', linewidth=2.0, label="Error (Entrada - Salida)")
-canvas_main = FigureCanvasTkAgg(fig, master=right_panel)
+canvas_main = FigureCanvasTkAgg(fig, master=scrollable_frame)
 canvas_main.get_tk_widget().pack(fill="both", expand=True)
 
 line_music, line_output, line_error, line_control, line_feedback, line_noise, line_noise_internal, line_noise_external = lines
@@ -423,6 +444,10 @@ ttk.Checkbutton(
 canvas_pid = FigureCanvasTkAgg(fig_pid, master=left_panel)
 canvas_pid.get_tk_widget().grid(row=len(labels)+6, column=0, columnspan=2, pady=10)
 
+def _on_mousewheel(event):
+    canvas_frame.yview_scroll(int(-1 * (event.delta / 120)), "units")
+
+canvas_frame.bind_all("<MouseWheel>", _on_mousewheel)
 
 # =================== ANIMACIÓN ===================
 def update_plots(frame):
