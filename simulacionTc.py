@@ -411,7 +411,7 @@ titles = [
     "f unitaria - (Sonido captado por el micrófono interno)", 
     "Ptotal - (Ruido externo e interno)", 
     "Pi - (Ruido interno)", 
-    "Pe (Ruido externo)",
+    "Pe - (Ruido externo)",
     "Θoc Feedforward - (Señal antirruido Feedforward)"
     ]
 
