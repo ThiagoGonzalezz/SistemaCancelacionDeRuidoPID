@@ -131,7 +131,7 @@ def toggle_pause():
         stream.start()
 
 def on_slider_change(value):
-    altura_label_var.set(f"Altura: {float(value):.2f}x")
+    altura_label_var.set(f"Altura de los gráficos: {float(value):.2f}x")
 
 # =================== FUNCIONES DE SEÑAL ===================
 def generate_signal(t, idx):
@@ -349,7 +349,7 @@ kd_label_var = tk.StringVar()
 error_rms_var = tk.StringVar()
 horn_active_var = tk.StringVar(value="Ruido activo: No")
 altura_var = tk.DoubleVar(value=1.11)  # Altura por gráfico (9 gráficos, 10 pulgadas totales iniciales → 10/9 ≈ 1.11)
-altura_label_var = tk.StringVar(value=f"Altura: {altura_var.get():.2f}x")
+altura_label_var = tk.StringVar(value=f"Altura de los gráficos: {altura_var.get():.2f}x")
 
 labels = [
     ("Música", set_music_amplitude, music_label_var),
@@ -453,7 +453,7 @@ ttk.Checkbutton(
 # Slider de altura de los gráficos
 ttk.Label(left_panel, textvariable=altura_label_var).grid(row=len(labels)+6, column=0, sticky="w")
 altura_slider = ttk.Scale(
-    left_panel, from_=0.8, to=3.0, variable=altura_var,
+    left_panel, from_=0.8, to=6.0, variable=altura_var,
     orient="horizontal", command=on_slider_change
 )
 altura_slider.grid(row=len(labels)+6, column=1, sticky="ew")
@@ -461,10 +461,15 @@ altura_slider.grid(row=len(labels)+6, column=1, sticky="ew")
 # Botón para aplicar altura
 def aplicar_altura():
     nueva_altura = altura_var.get()
-    fig.set_size_inches(9, nueva_altura * 9)  # Cambia la altura total
-    canvas_main.draw()
-    canvas_main.get_tk_widget().config(height=int(nueva_altura * 300))  # Ajusta el alto del widget visual
+    fig.set_size_inches(9, nueva_altura * 9)  # 9 subplots
+    dpi = fig.get_dpi()
+    new_pixel_height = int(nueva_altura * 9 * dpi)
 
+    # Redibujar figura
+    canvas_main.draw()
+
+    # Actualizar tamaño visual del widget gráfico
+    canvas_main.get_tk_widget().config(height=new_pixel_height)
 
 
 ttk.Button(left_panel, text="Aplicar Altura", command=aplicar_altura).grid(
