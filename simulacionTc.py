@@ -136,11 +136,13 @@ def generate_signal(t, idx):
         extra *= extra_noise_amplitude
     
     noise_signal = motor + horn + extra
+    extern_noise_signal = motor + horn
     if len(music_signal) < len(t):
         music_signal = np.pad(music_signal, (0, len(t) - len(music_signal)), 'constant')
         noise_signal = np.pad(noise_signal, (0, len(t) - len(noise_signal)), 'constant')
-    
-    return music_signal, noise_signal
+        extern_noise_signal = np.pad(noise_signal, (0, len(t) - len(noise_signal)), 'constant')
+
+    return music_signal, noise_signal, extern_noise_signal
 
 # =================== FUNCIONES PID ===================
 def controladorPID(error):
@@ -231,7 +233,7 @@ def audio_callback(outdata, frames, time, status):
         outdata.fill(0)
         return
 
-    music_signal, noise_signal = generate_signal(t, music_idx)
+    music_signal, noise_signal, extern_noise_signal = generate_signal(t, music_idx)
 
     # Aseguramos que haya arrays válidos al principio
     if isinstance(entradaAnterior, (int, float)):
@@ -240,7 +242,7 @@ def audio_callback(outdata, frames, time, status):
         retroalimentacion = np.zeros_like(music_signal)
 
     error = entradaAnterior - retroalimentacion
-    antiruidoFeedForward = controladorFeedFoward(noise_signal)
+    antiruidoFeedForward = controladorFeedFoward(extern_noise_signal)
     antiruidoPID = controladorPID(error)
     salida = music_signal + antiruidoPID + noise_signal + antiruidoFeedForward
 
@@ -347,7 +349,7 @@ fig, axs = plt.subplots(6, 1, figsize=(8, 8), constrained_layout=True)
 axes = axs
 lines = []
 colors = ['blue', 'purple', 'red', 'green', 'brown' ,'orange']
-titles = ["Θi - (Música)", "Θo - (Sonido percibido por el usuario)", "e - (Sonido residual que no pudo ser cancelado)", "Θoc - (Señal antirruido)", "f unitaria - (Sonido captado por el micrófono interno)", "P - (Ruido externo)"]
+titles = ["Θi - (Música)", "Θo - (Sonido percibido por el usuario)", "e - (Sonido residual que no pudo ser cancelado)", "Θoc - (Señal antirruido)", "f unitaria - (Sonido captado por el micrófono interno)", "Ptotal - (Ruido externo e interno)"]
 for ax, title, c in zip(axs, titles, colors):
     line, = ax.plot(t, np.zeros_like(t), color=c)
     ax.set_title(title)
